@@ -21,6 +21,8 @@ const state = {
   lives: 5,
   level: 1,
   enemies: [],
+  bullets: [],
+  explosions: [],
   lockedEnemyId: null,
   lastSpawnTime: 0,
   spawnInterval: 1500,
@@ -28,6 +30,11 @@ const state = {
   enemyBaseSpeed: 28,
   enemyIdSeed: 1,
   startedAt: performance.now()
+};
+
+const player = {
+  x: canvas.width / 2,
+  y: canvas.height - 44
 };
 
 function randomWord() {
@@ -92,6 +99,7 @@ function onLetterInput(ch) {
       return;
     }
     state.lockedEnemyId = target.id;
+    spawnBullet(target.id, target.x, target.y);
     target.progress = 1;
     if (target.progress >= target.word.length) {
       killEnemy(target.id);
@@ -104,10 +112,51 @@ function onLetterInput(ch) {
     return;
   }
 
+  spawnBullet(locked.id, locked.x, locked.y);
   locked.progress += 1;
   if (locked.progress >= locked.word.length) {
     killEnemy(locked.id);
   }
+}
+
+function spawnBullet(targetEnemyId, targetX, targetY) {
+  const dx = targetX - player.x;
+  const dy = targetY - player.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const speed = 700;
+
+  state.bullets.push({
+    x: player.x,
+    y: player.y,
+    vx: (dx / dist) * speed,
+    vy: (dy / dist) * speed,
+    speed,
+    targetEnemyId,
+    targetX,
+    targetY,
+    trailLife: 0.2
+  });
+}
+
+function spawnExplosion(x, y, color) {
+  for (let i = 0; i < 14; i += 1) {
+    const angle = (Math.PI * 2 * i) / 14 + Math.random() * 0.35;
+    const speed = 80 + Math.random() * 170;
+    state.explosions.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 0.35 + Math.random() * 0.2,
+      maxLife: 0.55,
+      size: 2 + Math.random() * 3,
+      color
+    });
+  }
+}
+
+function findEnemyById(enemyId) {
+  return state.enemies.find((enemy) => enemy.id === enemyId) || null;
 }
 
 function killEnemy(enemyId) {
@@ -118,6 +167,7 @@ function killEnemy(enemyId) {
 
   const enemy = state.enemies[index];
   state.score += enemy.word.length * 10;
+  spawnExplosion(enemy.x, enemy.y, "125,211,252");
   state.enemies.splice(index, 1);
   if (state.lockedEnemyId === enemyId) {
     state.lockedEnemyId = null;
@@ -132,6 +182,7 @@ function loseLife() {
     finalScoreEl.textContent = String(state.score);
     overlayEl.classList.remove("hidden");
     state.lockedEnemyId = null;
+    state.bullets = [];
   }
 }
 
@@ -154,10 +205,83 @@ function update(dt, now) {
         state.lockedEnemyId = null;
       }
       state.enemies.splice(i, 1);
+      spawnExplosion(enemy.x, canvas.height - 20, "251,113,133");
       loseLife();
       if (state.status !== "running") {
         return;
       }
+    }
+  }
+
+  for (let i = state.bullets.length - 1; i >= 0; i -= 1) {
+    const bullet = state.bullets[i];
+    const targetEnemy = findEnemyById(bullet.targetEnemyId);
+    if (targetEnemy) {
+      bullet.targetX = targetEnemy.x;
+      bullet.targetY = targetEnemy.y;
+    }
+
+    if (targetEnemy) {
+      const aimDx = bullet.targetX - bullet.x;
+      const aimDy = bullet.targetY - bullet.y;
+      const aimDist = Math.hypot(aimDx, aimDy) || 1;
+      const desiredVx = (aimDx / aimDist) * bullet.speed;
+      const desiredVy = (aimDy / aimDist) * bullet.speed;
+      const steer = Math.min(1, dt * 14);
+      bullet.vx += (desiredVx - bullet.vx) * steer;
+      bullet.vy += (desiredVy - bullet.vy) * steer;
+    }
+
+    const prevX = bullet.x;
+    const prevY = bullet.y;
+    bullet.x += bullet.vx * dt;
+    bullet.y += bullet.vy * dt;
+    bullet.trailLife = Math.max(0.08, bullet.trailLife - dt * 0.35);
+
+    const segDx = bullet.x - prevX;
+    const segDy = bullet.y - prevY;
+    const segLenSq = segDx * segDx + segDy * segDy;
+
+    let closestDistance = Math.hypot(bullet.targetX - bullet.x, bullet.targetY - bullet.y);
+    if (segLenSq > 0.0001) {
+      const toTargetX = bullet.targetX - prevX;
+      const toTargetY = bullet.targetY - prevY;
+      const projection = (toTargetX * segDx + toTargetY * segDy) / segLenSq;
+      const t = Math.max(0, Math.min(1, projection));
+      const closestX = prevX + segDx * t;
+      const closestY = prevY + segDy * t;
+      closestDistance = Math.hypot(bullet.targetX - closestX, bullet.targetY - closestY);
+    }
+
+    const hitRadius = targetEnemy ? targetEnemy.radius + 2 : 10;
+    if (closestDistance <= hitRadius) {
+      const fx = targetEnemy ? targetEnemy.x : bullet.targetX;
+      const fy = targetEnemy ? targetEnemy.y : bullet.targetY;
+      spawnExplosion(fx, fy, "134,239,172");
+      state.bullets.splice(i, 1);
+      continue;
+    }
+
+    if (
+      bullet.x < -20 ||
+      bullet.x > canvas.width + 20 ||
+      bullet.y < -20 ||
+      bullet.y > canvas.height + 20
+    ) {
+      state.bullets.splice(i, 1);
+    }
+  }
+
+  for (let i = state.explosions.length - 1; i >= 0; i -= 1) {
+    const particle = state.explosions[i];
+    particle.x += particle.vx * dt;
+    particle.y += particle.vy * dt;
+    particle.vx *= 0.98;
+    particle.vy *= 0.98;
+    particle.life -= dt;
+
+    if (particle.life <= 0) {
+      state.explosions.splice(i, 1);
     }
   }
 }
@@ -201,6 +325,48 @@ function drawEnemy(enemy, isLocked) {
   ctx.fillText(todo, startX + doneWidth, enemy.y + 34);
 }
 
+function drawBullets() {
+  for (const bullet of state.bullets) {
+    const alpha = Math.max(0.35, bullet.trailLife);
+    ctx.beginPath();
+    ctx.arc(bullet.x, bullet.y, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(134,239,172,${alpha})`;
+    ctx.fill();
+  }
+}
+
+function drawExplosions() {
+  for (const particle of state.explosions) {
+    const alpha = Math.max(0, particle.life / particle.maxLife);
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${particle.color},${alpha})`;
+    ctx.fill();
+  }
+}
+
+function drawPlayerShip() {
+  ctx.save();
+  ctx.translate(player.x, player.y);
+  ctx.beginPath();
+  ctx.moveTo(0, -14);
+  ctx.lineTo(11, 12);
+  ctx.lineTo(0, 8);
+  ctx.lineTo(-11, 12);
+  ctx.closePath();
+  ctx.fillStyle = "#86efac";
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(0, 8);
+  ctx.lineTo(4, 18);
+  ctx.lineTo(-4, 18);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(125,211,252,0.8)";
+  ctx.fill();
+  ctx.restore();
+}
+
 function render(now) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -216,6 +382,10 @@ function render(now) {
   for (const enemy of state.enemies) {
     drawEnemy(enemy, lockedEnemy && enemy.id === lockedEnemy.id);
   }
+
+  drawBullets();
+  drawExplosions();
+  drawPlayerShip();
 
   ctx.strokeStyle = "rgba(251,113,133,0.35)";
   ctx.beginPath();
@@ -250,6 +420,8 @@ function resetGame() {
   state.lives = 5;
   state.level = 1;
   state.enemies = [];
+  state.bullets = [];
+  state.explosions = [];
   state.lockedEnemyId = null;
   state.lastSpawnTime = 0;
   state.spawnInterval = 1500;
