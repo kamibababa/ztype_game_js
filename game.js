@@ -8,6 +8,9 @@ const comboEl = document.getElementById("combo");
 const multiplierEl = document.getElementById("multiplier");
 const targetWordEl = document.getElementById("targetWord");
 const muteBtn = document.getElementById("muteBtn");
+const startOverlayEl = document.getElementById("startOverlay");
+const startBtn = document.getElementById("startBtn");
+const pauseOverlayEl = document.getElementById("pauseOverlay");
 const overlayEl = document.getElementById("overlay");
 const finalScoreEl = document.getElementById("finalScore");
 const restartBtn = document.getElementById("restartBtn");
@@ -19,7 +22,7 @@ const WORD_TIERS = {
 };
 
 const state = {
-  status: "running",
+  status: "ready",
   score: 0,
   lives: 5,
   level: 1,
@@ -249,6 +252,33 @@ function onLetterInput(ch) {
   locked.progress += 1;
   if (locked.progress >= locked.word.length) {
     killEnemy(locked.id);
+  }
+}
+
+function startGame() {
+  if (state.status !== "ready") {
+    return;
+  }
+  state.status = "running";
+  state.startedAt = performance.now();
+  state.lastSpawnTime = state.startedAt;
+  startOverlayEl.classList.add("hidden");
+  pauseOverlayEl.classList.add("hidden");
+}
+
+function togglePause() {
+  if (state.status === "running") {
+    state.status = "paused";
+    pauseOverlayEl.classList.remove("hidden");
+    return;
+  }
+  if (state.status === "paused") {
+    state.status = "running";
+    pauseOverlayEl.classList.add("hidden");
+    return;
+  }
+  if (state.status === "ready") {
+    startGame();
   }
 }
 
@@ -587,13 +617,22 @@ function resetGame() {
   state.enemyBaseSpeed = 28;
   state.enemyIdSeed = 1;
   state.startedAt = performance.now();
+  state.lastSpawnTime = state.startedAt;
 
   overlayEl.classList.add("hidden");
+  startOverlayEl.classList.add("hidden");
+  pauseOverlayEl.classList.add("hidden");
 }
 
 window.addEventListener("keydown", (event) => {
   unlockAudio();
   if (event.ctrlKey || event.metaKey || event.altKey) {
+    return;
+  }
+
+  if (event.code === "Space") {
+    event.preventDefault();
+    togglePause();
     return;
   }
 
@@ -606,6 +645,11 @@ window.addEventListener("keydown", (event) => {
 restartBtn.addEventListener("click", () => {
   unlockAudio();
   resetGame();
+});
+
+startBtn.addEventListener("click", () => {
+  unlockAudio();
+  startGame();
 });
 
 muteBtn.addEventListener("click", () => {

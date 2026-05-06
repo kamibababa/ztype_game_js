@@ -94,6 +94,11 @@ canvas {
   color: var(--danger);
 }
 
+#startOverlay h1,
+#pauseOverlay h1 {
+  color: var(--accent);
+}
+
 .overlay button {
   border: 0;
   padding: 10px 16px;

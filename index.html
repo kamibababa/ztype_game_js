@@ -23,6 +23,18 @@
 
   <canvas id="game" width="1000" height="600"></canvas>
 
+  <div id="startOverlay" class="overlay">
+    <h1>zType Clone</h1>
+    <p>输入字母锁定并击落敌人</p>
+    <p>按 <strong>Space</strong> 开始，游戏中可暂停/继续</p>
+    <button id="startBtn">开始游戏</button>
+  </div>
+
+  <div id="pauseOverlay" class="overlay hidden">
+    <h1>已暂停</h1>
+    <p>按 <strong>Space</strong> 继续</p>
+  </div>
+
   <div id="overlay" class="overlay hidden">
     <h1>游戏结束</h1>
     <p>最终分数: <span id="finalScore">0</span></p>
