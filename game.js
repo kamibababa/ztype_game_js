@@ -7,6 +7,7 @@ const levelEl = document.getElementById("level");
 const comboEl = document.getElementById("combo");
 const multiplierEl = document.getElementById("multiplier");
 const targetWordEl = document.getElementById("targetWord");
+const muteBtn = document.getElementById("muteBtn");
 const overlayEl = document.getElementById("overlay");
 const finalScoreEl = document.getElementById("finalScore");
 const restartBtn = document.getElementById("restartBtn");
@@ -42,6 +43,98 @@ const player = {
   x: canvas.width / 2,
   y: canvas.height - 44
 };
+
+const audioState = {
+  context: null,
+  masterGain: null,
+  unlocked: false,
+  muted: false
+};
+
+function ensureAudioContext() {
+  if (!audioState.context) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) {
+      return null;
+    }
+    audioState.context = new AudioCtx();
+    audioState.masterGain = audioState.context.createGain();
+    audioState.masterGain.gain.value = audioState.muted ? 0 : 0.18;
+    audioState.masterGain.connect(audioState.context.destination);
+  }
+  return audioState.context;
+}
+
+function unlockAudio() {
+  const context = ensureAudioContext();
+  if (!context) {
+    return;
+  }
+  if (context.state === "suspended") {
+    context.resume();
+  }
+  audioState.unlocked = true;
+}
+
+function playTone(freq, durationSec, type, gainValue, whenOffsetSec) {
+  if (audioState.muted) {
+    return;
+  }
+  const context = ensureAudioContext();
+  if (!context || !audioState.unlocked || !audioState.masterGain) {
+    return;
+  }
+
+  const start = context.currentTime + (whenOffsetSec || 0);
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = type || "sine";
+  oscillator.frequency.setValueAtTime(freq, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.001, gainValue || 0.08), start + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + durationSec);
+
+  oscillator.connect(gain);
+  gain.connect(audioState.masterGain);
+
+  oscillator.start(start);
+  oscillator.stop(start + durationSec + 0.015);
+}
+
+function playShotSound() {
+  playTone(760, 0.055, "triangle", 0.055, 0);
+}
+
+function playKillSound() {
+  playTone(520, 0.08, "square", 0.08, 0);
+  playTone(860, 0.1, "triangle", 0.06, 0.03);
+}
+
+function playDamageSound() {
+  playTone(190, 0.13, "sawtooth", 0.09, 0);
+}
+
+function playGameOverSound() {
+  playTone(340, 0.12, "triangle", 0.07, 0);
+  playTone(260, 0.16, "triangle", 0.07, 0.1);
+  playTone(180, 0.22, "triangle", 0.08, 0.22);
+}
+
+function updateMuteButtonLabel() {
+  if (audioState.muted) {
+    muteBtn.textContent = "🔇 音效关";
+  } else {
+    muteBtn.textContent = "🔊 音效开";
+  }
+}
+
+function toggleMute() {
+  audioState.muted = !audioState.muted;
+  if (audioState.masterGain) {
+    audioState.masterGain.gain.value = audioState.muted ? 0 : 0.18;
+  }
+  updateMuteButtonLabel();
+}
 
 function randomWord() {
   const weight = getTierWeightsByLevel(state.level);
@@ -137,6 +230,7 @@ function onLetterInput(ch) {
       return;
     }
     state.lockedEnemyId = target.id;
+    playShotSound();
     spawnBullet(target.id, target.x, target.y);
     target.progress = 1;
     if (target.progress >= target.word.length) {
@@ -150,6 +244,7 @@ function onLetterInput(ch) {
     return;
   }
 
+  playShotSound();
   spawnBullet(locked.id, locked.x, locked.y);
   locked.progress += 1;
   if (locked.progress >= locked.word.length) {
@@ -210,6 +305,7 @@ function killEnemy(enemyId) {
   state.combo += 1;
   state.multiplier = Math.min(4, 1 + Math.floor(state.combo / 3) * 0.25);
   state.comboTimer = state.comboTimeoutSec;
+  playKillSound();
   spawnExplosion(enemy.x, enemy.y, "125,211,252");
   state.enemies.splice(index, 1);
   if (state.lockedEnemyId === enemyId) {
@@ -219,6 +315,7 @@ function killEnemy(enemyId) {
 
 function loseLife() {
   state.lives -= 1;
+  playDamageSound();
   state.combo = 0;
   state.multiplier = 1;
   state.comboTimer = 0;
@@ -227,6 +324,7 @@ function loseLife() {
     state.status = "gameover";
     finalScoreEl.textContent = String(state.score);
     overlayEl.classList.remove("hidden");
+    playGameOverSound();
     state.lockedEnemyId = null;
     state.bullets = [];
   }
@@ -494,6 +592,7 @@ function resetGame() {
 }
 
 window.addEventListener("keydown", (event) => {
+  unlockAudio();
   if (event.ctrlKey || event.metaKey || event.altKey) {
     return;
   }
@@ -505,11 +604,21 @@ window.addEventListener("keydown", (event) => {
 });
 
 restartBtn.addEventListener("click", () => {
+  unlockAudio();
   resetGame();
 });
+
+muteBtn.addEventListener("click", () => {
+  unlockAudio();
+  toggleMute();
+});
+
+window.addEventListener("pointerdown", unlockAudio, { once: true });
+window.addEventListener("keydown", unlockAudio, { once: true });
 
 requestAnimationFrame((now) => {
   previous = now;
   state.startedAt = now;
+  updateMuteButtonLabel();
   gameLoop(now);
 });
