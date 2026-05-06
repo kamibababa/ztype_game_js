@@ -2,6 +2,7 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
 const scoreEl = document.getElementById("score");
+const bestScoreEl = document.getElementById("bestScore");
 const livesEl = document.getElementById("lives");
 const levelEl = document.getElementById("level");
 const comboEl = document.getElementById("combo");
@@ -13,7 +14,10 @@ const startBtn = document.getElementById("startBtn");
 const pauseOverlayEl = document.getElementById("pauseOverlay");
 const overlayEl = document.getElementById("overlay");
 const finalScoreEl = document.getElementById("finalScore");
+const finalBestScoreEl = document.getElementById("finalBestScore");
 const restartBtn = document.getElementById("restartBtn");
+
+const BEST_SCORE_KEY = "ztype_best_score";
 
 const WORD_TIERS = {
   easy: ["code", "bug", "loop", "game", "score", "input", "enemy", "level", "pixel", "timer"],
@@ -24,6 +28,7 @@ const WORD_TIERS = {
 const state = {
   status: "ready",
   score: 0,
+  bestScore: 0,
   lives: 5,
   level: 1,
   combo: 0,
@@ -41,6 +46,35 @@ const state = {
   enemyIdSeed: 1,
   startedAt: performance.now()
 };
+
+function loadBestScore() {
+  try {
+    const raw = window.localStorage.getItem(BEST_SCORE_KEY);
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return 0;
+    }
+    return Math.floor(parsed);
+  } catch (error) {
+    return 0;
+  }
+}
+
+function saveBestScore(bestScore) {
+  try {
+    window.localStorage.setItem(BEST_SCORE_KEY, String(bestScore));
+  } catch (error) {
+    // ignore write failures (private mode / blocked storage)
+  }
+}
+
+function syncBestScore() {
+  if (state.score <= state.bestScore) {
+    return;
+  }
+  state.bestScore = state.score;
+  saveBestScore(state.bestScore);
+}
 
 const player = {
   x: canvas.width / 2,
@@ -352,7 +386,9 @@ function loseLife() {
   if (state.lives <= 0) {
     state.lives = 0;
     state.status = "gameover";
+    syncBestScore();
     finalScoreEl.textContent = String(state.score);
+    finalBestScoreEl.textContent = String(state.bestScore);
     overlayEl.classList.remove("hidden");
     playGameOverSound();
     state.lockedEnemyId = null;
@@ -579,6 +615,7 @@ function render(now) {
 
 function updateHud() {
   scoreEl.textContent = String(state.score);
+  bestScoreEl.textContent = String(state.bestScore);
   livesEl.textContent = String(state.lives);
   levelEl.textContent = String(state.level);
   comboEl.textContent = String(state.combo);
@@ -663,6 +700,7 @@ window.addEventListener("keydown", unlockAudio, { once: true });
 requestAnimationFrame((now) => {
   previous = now;
   state.startedAt = now;
+  state.bestScore = loadBestScore();
   updateMuteButtonLabel();
   gameLoop(now);
 });
