@@ -31,6 +31,7 @@ export function pickTierByWeight(weight) {
   return "hard";
 }
 
+
 export function randomWord(level) {
   const weight = getTierWeightsByLevel(level);
   const tierName = pickTierByWeight(weight);

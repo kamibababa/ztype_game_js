@@ -16,6 +16,10 @@ export function getLockedEnemy(state) {
   return state.enemies.find((enemy) => enemy.id === state.lockedEnemyId) || null;
 }
 
+export function computeMultiplier(combo) {
+  return Math.min(4, 1 + Math.floor(combo / 3) * 0.25);
+}
+
 export function killEnemy(state, enemyId, audio) {
   const index = state.enemies.findIndex((enemy) => enemy.id === enemyId);
   if (index === -1) {
@@ -27,7 +31,7 @@ export function killEnemy(state, enemyId, audio) {
   const gained = Math.round(basePoints * state.multiplier);
   state.score += gained;
   state.combo += 1;
-  state.multiplier = Math.min(4, 1 + Math.floor(state.combo / 3) * 0.25);
+  state.multiplier = computeMultiplier(state.combo);
   state.comboTimer = state.comboTimeoutSec;
 
   audio.playKillSound();
