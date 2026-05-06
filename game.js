@@ -11,11 +11,11 @@ const overlayEl = document.getElementById("overlay");
 const finalScoreEl = document.getElementById("finalScore");
 const restartBtn = document.getElementById("restartBtn");
 
-const WORDS = [
-  "code", "bug", "array", "loop", "class", "object", "event", "canvas", "game", "score",
-  "logic", "input", "enemy", "level", "delta", "pixel", "timer", "stack", "queue", "value",
-  "script", "render", "target", "rocket", "planet", "meteor", "galaxy", "signal", "vector", "kernel"
-];
+const WORD_TIERS = {
+  easy: ["code", "bug", "loop", "game", "score", "input", "enemy", "level", "pixel", "timer"],
+  medium: ["array", "class", "object", "event", "logic", "delta", "stack", "queue", "value", "render"],
+  hard: ["canvas", "script", "target", "rocket", "planet", "meteor", "galaxy", "signal", "vector", "kernel"]
+};
 
 const state = {
   status: "running",
@@ -44,14 +44,45 @@ const player = {
 };
 
 function randomWord() {
-  return WORDS[Math.floor(Math.random() * WORDS.length)];
+  const weight = getTierWeightsByLevel(state.level);
+  const tierName = pickTierByWeight(weight);
+  const pool = WORD_TIERS[tierName];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function getTierWeightsByLevel(level) {
+  if (level <= 2) {
+    return { easy: 0.82, medium: 0.17, hard: 0.01 };
+  }
+  if (level <= 4) {
+    return { easy: 0.6, medium: 0.33, hard: 0.07 };
+  }
+  if (level <= 7) {
+    return { easy: 0.42, medium: 0.43, hard: 0.15 };
+  }
+  if (level <= 10) {
+    return { easy: 0.28, medium: 0.47, hard: 0.25 };
+  }
+  return { easy: 0.16, medium: 0.46, hard: 0.38 };
+}
+
+function pickTierByWeight(weight) {
+  const roll = Math.random();
+  if (roll < weight.easy) {
+    return "easy";
+  }
+  if (roll < weight.easy + weight.medium) {
+    return "medium";
+  }
+  return "hard";
 }
 
 function spawnEnemy(now) {
   const word = randomWord();
   const margin = 80;
   const x = margin + Math.random() * (canvas.width - margin * 2);
-  const speed = state.enemyBaseSpeed + Math.random() * 18 + state.level * 4;
+  const speedVariance = 10 + Math.min(18, state.level * 1.1);
+  const speed = state.enemyBaseSpeed + Math.random() * speedVariance;
 
   state.enemies.push({
     id: state.enemyIdSeed++,
@@ -68,11 +99,12 @@ function spawnEnemy(now) {
 
 function updateDifficulty(now) {
   const elapsedSec = (now - state.startedAt) / 1000;
-  const newLevel = 1 + Math.floor(elapsedSec / 18);
+  const newLevel = 1 + Math.floor(elapsedSec / 16);
   if (newLevel !== state.level) {
     state.level = newLevel;
-    state.spawnInterval = Math.max(state.minSpawnInterval, 1500 - (state.level - 1) * 110);
-    state.enemyBaseSpeed = 28 + (state.level - 1) * 3;
+    const spawnDrop = Math.min(920, (state.level - 1) * 78);
+    state.spawnInterval = Math.max(state.minSpawnInterval, 1500 - spawnDrop);
+    state.enemyBaseSpeed = 28 + Math.min(36, (state.level - 1) * 2.1);
   }
 }
 
