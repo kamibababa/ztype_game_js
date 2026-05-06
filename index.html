@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZType Clone - Step 1</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="hud">
+    <div class="left">
+      <span>分数: <strong id="score">0</strong></span>
+      <span>生命: <strong id="lives">5</strong></span>
+      <span>等级: <strong id="level">1</strong></span>
+    </div>
+    <div class="right">
+      <span>目标: <strong id="targetWord">无</strong></span>
+    </div>
+  </div>
+
+  <canvas id="game" width="1000" height="600"></canvas>
+
+  <div id="overlay" class="overlay hidden">
+    <h1>游戏结束</h1>
+    <p>最终分数: <span id="finalScore">0</span></p>
+    <button id="restartBtn">重新开始</button>
+  </div>
+
+  <div class="tips">
+    <p>输入敌人单词即可攻击；先输入首字母锁定目标。</p>
+  </div>
+
+  <script src="./game.js"></script>
+</body>
+</html>
