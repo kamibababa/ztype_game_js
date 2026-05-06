@@ -4,6 +4,8 @@ const ctx = canvas.getContext("2d");
 const scoreEl = document.getElementById("score");
 const livesEl = document.getElementById("lives");
 const levelEl = document.getElementById("level");
+const comboEl = document.getElementById("combo");
+const multiplierEl = document.getElementById("multiplier");
 const targetWordEl = document.getElementById("targetWord");
 const overlayEl = document.getElementById("overlay");
 const finalScoreEl = document.getElementById("finalScore");
@@ -20,6 +22,10 @@ const state = {
   score: 0,
   lives: 5,
   level: 1,
+  combo: 0,
+  multiplier: 1,
+  comboTimeoutSec: 2.2,
+  comboTimer: 0,
   enemies: [],
   bullets: [],
   explosions: [],
@@ -166,7 +172,12 @@ function killEnemy(enemyId) {
   }
 
   const enemy = state.enemies[index];
-  state.score += enemy.word.length * 10;
+  const basePoints = enemy.word.length * 10;
+  const gained = Math.round(basePoints * state.multiplier);
+  state.score += gained;
+  state.combo += 1;
+  state.multiplier = Math.min(4, 1 + Math.floor(state.combo / 3) * 0.25);
+  state.comboTimer = state.comboTimeoutSec;
   spawnExplosion(enemy.x, enemy.y, "125,211,252");
   state.enemies.splice(index, 1);
   if (state.lockedEnemyId === enemyId) {
@@ -176,6 +187,9 @@ function killEnemy(enemyId) {
 
 function loseLife() {
   state.lives -= 1;
+  state.combo = 0;
+  state.multiplier = 1;
+  state.comboTimer = 0;
   if (state.lives <= 0) {
     state.lives = 0;
     state.status = "gameover";
@@ -192,6 +206,15 @@ function update(dt, now) {
   }
 
   updateDifficulty(now);
+
+  if (state.combo > 0) {
+    state.comboTimer -= dt;
+    if (state.comboTimer <= 0) {
+      state.combo = 0;
+      state.multiplier = 1;
+      state.comboTimer = 0;
+    }
+  }
 
   if (now - state.lastSpawnTime >= state.spawnInterval) {
     spawnEnemy(now);
@@ -398,6 +421,8 @@ function updateHud() {
   scoreEl.textContent = String(state.score);
   livesEl.textContent = String(state.lives);
   levelEl.textContent = String(state.level);
+  comboEl.textContent = String(state.combo);
+  multiplierEl.textContent = `x${state.multiplier.toFixed(2).replace(/\.00$/, ".0")}`;
   const locked = getLockedEnemy();
   targetWordEl.textContent = locked ? locked.word : "无";
 }
@@ -419,6 +444,9 @@ function resetGame() {
   state.score = 0;
   state.lives = 5;
   state.level = 1;
+  state.combo = 0;
+  state.multiplier = 1;
+  state.comboTimer = 0;
   state.enemies = [];
   state.bullets = [];
   state.explosions = [];
